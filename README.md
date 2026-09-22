@@ -86,6 +86,33 @@ py -m venv venv
 
 ---
 
+## ☁️ 24/7 Bepul Serverga Yuklash (Render yoki Koyeb)
+
+### Variant 1: Render.com (Tavsiya etiladi - 1 daqiqada)
+1. [Render.com](https://render.com) ga kiring va GitHub orqali ro'yxatdan o'ting.
+2. **New +** tugmasini bosing va **Web Service** ni tanlang.
+3. `Signal_books_Bot` omboringizni tanlang.
+4. Sozlamalar:
+   - **Name:** `signal-books-bot`
+   - **Language / Runtime:** `Python`
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `python main.py`
+   - **Instance Type:** `Free`
+5. **Environment Variables** (Muhit o'zgaruvchilari) bo'limida 3 ta qiymatni kiriting:
+   - `BOT_TOKEN` = Sizning bot tokeningiz
+   - `ADMIN_IDS` = Sizning Telegram ID raqamingiz
+   - `WEB_APP_URL` = Saytingiz havolasi (https://signal-books.vercel.app/)
+6. **Deploy Web Service** tugmasini bosing. Bot bir necha soniyada 24/7 ishlab boshlaydi!
+
+### Variant 2: Koyeb.com
+1. [Koyeb.com](https://www.koyeb.com) ga kiring va GitHub hisobingiz bilan kiring.
+2. **Create Service** -> **GitHub** -> `Signal_books_Bot` omborini tanlang.
+3. Builder: **Dockerfile** yoki **Buildpack** ni tanlang.
+4. **Environment Variables** bo'limida `BOT_TOKEN`, `ADMIN_IDS`, `WEB_APP_URL` larni qo'shing.
+5. **Deploy** tugmasini bosing.
+
+---
+
 ## 💡 BotFather'da Web App menyu tugmasini ulash (Tavsiya etiladi)
 
 Telegram foydalanuvchilariga yanada chiroyli ko'rinishi uchun:

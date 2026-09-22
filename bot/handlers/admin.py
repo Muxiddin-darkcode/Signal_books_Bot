@@ -413,12 +413,14 @@ async def handle_suggest_view(call: CallbackQuery):
     }
     status_str = status_labels.get(item["status"], item["status"])
     user_str = f"@{item['username']}" if item["username"] else "mavjud emas"
+    author_str = item["author"] if item["author"] else "Ko'rsatilmadi"
+    note_str = item["note"] if item["note"] else "Mavjud emas"
 
     text = (
         f"💡 <b>Kitob taklifi #{item['id']}</b>\n\n"
         f"📖 <b>Kitob:</b> {item['book_title']}\n"
-        f"✍️ <b>Muallif:</b> {item['author'] or 'Ko\'rsatilmadi'}\n"
-        f"📝 <b>Izoh:</b> {item['note'] or 'Mavjud emas'}\n\n"
+        f"✍️ <b>Muallif:</b> {author_str}\n"
+        f"📝 <b>Izoh:</b> {note_str}\n\n"
         f"👤 <b>Foydalanuvchi:</b> {item['full_name']} ({user_str})\n"
         f"🆔 <b>ID:</b> <code>{item['user_id']}</code>\n"
         f"📅 <b>Vaqt:</b> {item['created_at']}\n"

@@ -40,12 +40,18 @@ async def start_web_server(port: int):
     logging.getLogger(__name__).info(f"🌐 Healthcheck web-server {port}-portda ishga tushdi.")
 
 async def keep_alive_task():
-    """Hugging Face yoki boshqa serverlarni uxlab qolishdan saqlovchi fon vazifasi"""
+    """Serverlarni (Render, Koyeb, Hugging Face) uxlab qolishdan saqlovchi fon vazifasi"""
     await asyncio.sleep(30)
-    space_host = os.getenv("SPACE_HOST")
-    url = f"https://{space_host}/health" if space_host else "https://muxiddin980001-signal-books-bot.hf.space/health"
+    server_url = (
+        os.getenv("SERVER_URL")
+        or os.getenv("RENDER_EXTERNAL_URL")
+        or (f"https://{os.getenv('SPACE_HOST')}" if os.getenv("SPACE_HOST") else None)
+    )
+    if not server_url:
+        logger.info("ℹ️ Server URL belgilanmagan, keep-alive ping o'tkazib yuborildi.")
+        return
 
-    logger = logging.getLogger(__name__)
+    url = f"{server_url.rstrip('/')}/health"
     logger.info(f"🔄 Keep-alive tizimi faollashtirildi: {url}")
     while True:
         try:
@@ -119,8 +125,8 @@ async def main():
     # Startup hodisasini ro'yxatdan o'tkazish
     dp.startup.register(on_startup)
 
-    # Healthcheck serverni ishga tushirish (Hugging Face uchun)
-    port_env = os.getenv("PORT", "7860")
+    # Healthcheck serverni ishga tushirish (Render, Koyeb, Docker uchun)
+    port_env = os.getenv("PORT", "8000")
     if port_env and port_env.isdigit():
         try:
             await start_web_server(int(port_env))

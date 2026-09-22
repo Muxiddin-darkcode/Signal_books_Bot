@@ -6,7 +6,7 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONUTF8=1 \
-    PORT=7860
+    PORT=8000
 
 # Kutubxonalarni o'rnatish
 COPY requirements.txt .
@@ -15,9 +15,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Loyiha fayllarini ko'chirish
 COPY . .
 
-# Hugging Face Space (user 1000) ma'lumotlar bazasi (SQLite) fayllarini yaratishi va yozishi uchun ruxsat
+# Ma'lumotlar bazasi (SQLite) fayllarini yaratishi va yozishi uchun ruxsat
 RUN chmod -R 777 /app
 
-EXPOSE 7860
+EXPOSE 8000
 
 CMD ["python", "main.py"]
