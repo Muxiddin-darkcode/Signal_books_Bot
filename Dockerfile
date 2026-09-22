@@ -15,6 +15,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Loyiha fayllarini ko'chirish
 COPY . .
 
+# Hugging Face Space (user 1000) ma'lumotlar bazasi (SQLite) fayllarini yaratishi va yozishi uchun ruxsat
+RUN chmod -R 777 /app
+
 EXPOSE 7860
 
 CMD ["python", "main.py"]

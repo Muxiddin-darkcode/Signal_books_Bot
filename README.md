@@ -1,4 +1,15 @@
+---
+title: Signal Books Bot
+emoji: 📚
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # 📚 Signal Books — Telegram Web App Boti
+
 
 Ushbu bot **Signal Books** loyihangizning veb-saytini Telegram ichida zamonaviy **Telegram Mini App (Web App)** sifatida qulay ochib berish va do'koningizni to'liq boshqarish uchun yaratilgan.
 

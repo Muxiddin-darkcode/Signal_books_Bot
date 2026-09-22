@@ -2,6 +2,7 @@ import asyncio
 import logging
 import sys
 import os
+import aiohttp
 from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
@@ -25,7 +26,7 @@ if sys.platform.startswith("win"):
         pass
 
 async def handle_ping(request):
-    return web.Response(text="Signal Books Bot is RUNNING! 🚀", content_type="text/plain")
+    return web.Response(text="Signal Books Bot is RUNNING 24/7! 🚀", content_type="text/plain")
 
 async def start_web_server(port: int):
     """Serverlar (Hugging Face, Koyeb, Render) uchun kichik veb endpoint"""
@@ -38,6 +39,24 @@ async def start_web_server(port: int):
     await site.start()
     logging.getLogger(__name__).info(f"🌐 Healthcheck web-server {port}-portda ishga tushdi.")
 
+async def keep_alive_task():
+    """Hugging Face yoki boshqa serverlarni uxlab qolishdan saqlovchi fon vazifasi"""
+    await asyncio.sleep(30)
+    space_host = os.getenv("SPACE_HOST")
+    url = f"https://{space_host}/health" if space_host else "https://muxiddin980001-signal-books-bot.hf.space/health"
+
+    logger = logging.getLogger(__name__)
+    logger.info(f"🔄 Keep-alive tizimi faollashtirildi: {url}")
+    while True:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=15) as resp:
+                    if resp.status == 200:
+                        logger.info("💓 Keep-alive ping muvaffaqiyatli (Bot faol)")
+        except Exception as e:
+            logger.debug(f"Keep-alive ping: {e}")
+        # Har 10 daqiqada ping yuborib serverni uyg'oq ushlab turadi
+        await asyncio.sleep(600)
 
 # Logging sozlamalari
 logging.basicConfig(
@@ -72,13 +91,12 @@ async def main():
     if not BOT_TOKEN or BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
         logger.error(
             "\n" + "!" * 60 + "\n"
-            "DIQQAT! .env faylida BOT_TOKEN ko'rsatilmagan!\n"
-            "Iltimos, .env faylini ochib, @BotFather dan olgan bot tokeningizni kiriting.\n"
+            "DIQQAT! BOT_TOKEN ko'rsatilmagan!\n"
             "!" * 60
         )
         return
 
-    # Proxy mavjud bo'lsa (masalan PythonAnywhere bepul rejasida)
+    # Proxy mavjud bo'lsa
     proxy = os.getenv("HTTP_PROXY") or os.getenv("http_proxy") or os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
     session = AiohttpSession(proxy=proxy) if proxy else None
 
@@ -90,7 +108,7 @@ async def main():
     )
     dp = Dispatcher(storage=MemoryStorage())
 
-    # Middlewarelarni ulash (foydalanuvchilarni avtomatik bazaga yozish uchun)
+    # Middlewarelarni ulash
     dp.message.outer_middleware(DatabaseMiddleware())
     dp.callback_query.outer_middleware(DatabaseMiddleware())
 
@@ -101,21 +119,39 @@ async def main():
     # Startup hodisasini ro'yxatdan o'tkazish
     dp.startup.register(on_startup)
 
-    # Server muhitida (PORT bo'lganda) healthcheck serverni ishga tushirish
-    port_env = os.getenv("PORT")
+    # Healthcheck serverni ishga tushirish (Hugging Face uchun)
+    port_env = os.getenv("PORT", "7860")
     if port_env and port_env.isdigit():
         try:
             await start_web_server(int(port_env))
         except Exception as e:
             logger.warning(f"Healthcheck serverni ishga tushirishda xatolik: {e}")
 
-    # Eski xabarlarni tashlab yuborish va pollingni boshlash
-    logger.info("Eski yangilanishlar o'chirilmoqda va bot tayyorlanmoqda...")
-    await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
+    # Uxlab qolishdan saqlovchi keep-alive taskni orqa fonda yoqish
+    asyncio.create_task(keep_alive_task())
+
+    # Cheksiz qayta ulanish sikli (Internet uzilsa ham bot o'chmaydi)
+    while True:
+        try:
+            logger.info("Eski yangilanishlar o'chirilmoqda va bot tayyorlanmoqda...")
+            await bot.delete_webhook(drop_pending_updates=True)
+            await dp.start_polling(bot)
+        except (KeyboardInterrupt, SystemExit):
+            logger.info("Bot to'xtatildi.")
+            break
+        except Exception as e:
+            logger.error(f"⚠️ Telegram ulanish xatoligi: {e}. 5 soniyadan so'ng qayta ulanadi...")
+            await asyncio.sleep(5)
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        logger.info("Bot to'xtatildi.")
+    while True:
+        try:
+            asyncio.run(main())
+            break
+        except (KeyboardInterrupt, SystemExit):
+            logger.info("Dastur to'xtatildi.")
+            break
+        except Exception as e:
+            logger.critical(f"Kutilmagan xatolik yuz berdi: {e}. Qayta ishga tushirilmoqda...")
+            import time
+            time.sleep(5)

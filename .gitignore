@@ -18,3 +18,5 @@ __pycache__/
 # Tizim fayllari
 .DS_Store
 Thumbs.db
+
+Signal_books_Bot/
