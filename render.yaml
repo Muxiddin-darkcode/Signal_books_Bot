@@ -15,3 +15,5 @@ services:
         sync: false
       - key: WEB_APP_URL
         sync: false
+      - key: FIREBASE_CREDENTIALS
+        sync: false
