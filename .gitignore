@@ -10,6 +10,9 @@ __pycache__/
 
 # Maxfiy sozlamalar
 .env
+serviceAccountKey.json
+firebase-key.json
+*firebase*.json
 
 # SQLite ma'lumotlar bazasi (server o'zida yaratadi)
 *.db

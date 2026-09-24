@@ -1,6 +1,25 @@
 import aiosqlite
+import logging
 from datetime import datetime, date
-from bot.config import DB_PATH, DEFAULT_WEB_APP_URL
+from bot.config import DB_PATH, DEFAULT_WEB_APP_URL, USE_FIREBASE
+from bot.database.firebase_db import (
+    is_firebase_available,
+    fb_init_db,
+    fb_add_or_update_user,
+    fb_set_user_blocked,
+    fb_get_all_users,
+    fb_get_stats,
+    fb_get_setting,
+    fb_set_setting,
+    fb_get_all_users_for_export,
+    fb_add_book_suggestion,
+    fb_get_book_suggestion,
+    fb_update_suggestion_status,
+    fb_get_suggestions_stats,
+    fb_get_recent_suggestions,
+)
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_ABOUT_TEXT = (
     "<b>Signal Books haqida</b>\n\n"
@@ -28,7 +47,13 @@ DEFAULT_CONTACT_TEXT = (
 )
 
 async def init_db():
-    """Ma'lumotlar bazasini va jadvallarni initsializatsiya qilish"""
+    """Ma'lumotlar bazasini initsializatsiya qilish"""
+    if is_firebase_available():
+        logger.info("🔥 Ma'lumotlar bazasi: Firebase Firestore faol.")
+        await fb_init_db()
+        return
+
+    logger.warning("⚠️ Firebase kaliti topilmadi. Mahalliy SQLite bazasi ishlatilmoqda.")
     async with aiosqlite.connect(DB_PATH) as db:
         # Foydalanuvchilar jadvali
         await db.execute("""
@@ -70,7 +95,7 @@ async def init_db():
             ("web_app_url", DEFAULT_WEB_APP_URL),
             ("about_text", DEFAULT_ABOUT_TEXT),
             ("contact_text", DEFAULT_CONTACT_TEXT),
-            ("force_channel", ""),  # Kanal username yoki ID (agar majburiy bo'lsa)
+            ("force_channel", ""),
             ("force_channel_title", "")
         ]
 
@@ -93,10 +118,10 @@ async def init_db():
         await db.commit()
 
 async def add_or_update_user(user_id: int, username: str | None, full_name: str | None) -> bool:
-    """
-    Foydalanuvchini bazaga qo'shish yoki ma'lumotlarini yangilash.
-    Yangi foydalanuvchi bo'lsa True qaytaradi.
-    """
+    """Foydalanuvchini bazaga qo'shish yoki ma'lumotlarini yangilash"""
+    if is_firebase_available():
+        return await fb_add_or_update_user(user_id, username, full_name)
+
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,)) as cursor:
             row = await cursor.fetchone()
@@ -120,6 +145,10 @@ async def add_or_update_user(user_id: int, username: str | None, full_name: str 
 
 async def set_user_blocked(user_id: int, is_blocked: bool = True):
     """Foydalanuvchi botni bloklaganini belgilash"""
+    if is_firebase_available():
+        await fb_set_user_blocked(user_id, is_blocked)
+        return
+
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("""
             UPDATE users SET is_blocked = ? WHERE user_id = ?
@@ -128,6 +157,9 @@ async def set_user_blocked(user_id: int, is_blocked: bool = True):
 
 async def get_all_users(only_active: bool = False) -> list[int]:
     """Barcha foydalanuvchilar ID ro'yxatini olish"""
+    if is_firebase_available():
+        return await fb_get_all_users(only_active)
+
     async with aiosqlite.connect(DB_PATH) as db:
         if only_active:
             query = "SELECT user_id FROM users WHERE is_blocked = 0"
@@ -139,21 +171,20 @@ async def get_all_users(only_active: bool = False) -> list[int]:
 
 async def get_stats() -> dict:
     """Bot statistikasini olish"""
+    if is_firebase_available():
+        return await fb_get_stats()
+
     today_str = date.today().strftime("%Y-%m-%d")
     async with aiosqlite.connect(DB_PATH) as db:
-        # Jami foydalanuvchilar
         async with db.execute("SELECT COUNT(*) FROM users") as cursor:
             total_users = (await cursor.fetchone())[0]
 
-        # Faol foydalanuvchilar
         async with db.execute("SELECT COUNT(*) FROM users WHERE is_blocked = 0") as cursor:
             active_users = (await cursor.fetchone())[0]
 
-        # Bloklaganlar
         async with db.execute("SELECT COUNT(*) FROM users WHERE is_blocked = 1") as cursor:
             blocked_users = (await cursor.fetchone())[0]
 
-        # Bugun qo'shilganlar
         async with db.execute("SELECT COUNT(*) FROM users WHERE created_at LIKE ?", (f"{today_str}%",)) as cursor:
             today_users = (await cursor.fetchone())[0]
 
@@ -166,6 +197,9 @@ async def get_stats() -> dict:
 
 async def get_setting(key: str, default: str = "") -> str:
     """Sozlama qiymatini olish"""
+    if is_firebase_available():
+        return await fb_get_setting(key, default)
+
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("SELECT value FROM settings WHERE key = ?", (key,)) as cursor:
             row = await cursor.fetchone()
@@ -173,6 +207,10 @@ async def get_setting(key: str, default: str = "") -> str:
 
 async def set_setting(key: str, value: str):
     """Sozlamani saqlash yoki yangilash"""
+    if is_firebase_available():
+        await fb_set_setting(key, value)
+        return
+
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("""
             INSERT INTO settings (key, value) VALUES (?, ?)
@@ -182,6 +220,9 @@ async def set_setting(key: str, value: str):
 
 async def get_all_users_for_export() -> list[tuple]:
     """Eksport qilish uchun foydalanuvchilar ro'yxati"""
+    if is_firebase_available():
+        return await fb_get_all_users_for_export()
+
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("""
             SELECT user_id, username, full_name, created_at, last_active, is_blocked
@@ -198,6 +239,9 @@ async def add_book_suggestion(
     note: str | None = None
 ) -> int:
     """Yangi kitob taklifini saqlash va ID sini qaytarish"""
+    if is_firebase_available():
+        return await fb_add_book_suggestion(user_id, username, full_name, book_title, author, note)
+
     async with aiosqlite.connect(DB_PATH) as db:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         cursor = await db.execute("""
@@ -209,6 +253,9 @@ async def add_book_suggestion(
 
 async def get_book_suggestion(suggestion_id: int) -> dict | None:
     """Taklif ma'lumotlarini olish"""
+    if is_firebase_available():
+        return await fb_get_book_suggestion(suggestion_id)
+
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM book_suggestions WHERE id = ?", (suggestion_id,)) as cursor:
@@ -217,12 +264,19 @@ async def get_book_suggestion(suggestion_id: int) -> dict | None:
 
 async def update_suggestion_status(suggestion_id: int, status: str):
     """Taklif holatini yangilash ('pending', 'accepted', 'rejected')"""
+    if is_firebase_available():
+        await fb_update_suggestion_status(suggestion_id, status)
+        return
+
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("UPDATE book_suggestions SET status = ? WHERE id = ?", (status, suggestion_id))
         await db.commit()
 
 async def get_suggestions_stats() -> dict:
     """Kitob takliflari statistikasi"""
+    if is_firebase_available():
+        return await fb_get_suggestions_stats()
+
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("SELECT COUNT(*) FROM book_suggestions") as cursor:
             total = (await cursor.fetchone())[0]
@@ -241,6 +295,9 @@ async def get_suggestions_stats() -> dict:
 
 async def get_recent_suggestions(limit: int = 10, only_pending: bool = False) -> list[dict]:
     """So'nggi kitob takliflarini olish"""
+    if is_firebase_available():
+        return await fb_get_recent_suggestions(limit, only_pending)
+
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         if only_pending:
@@ -250,4 +307,3 @@ async def get_recent_suggestions(limit: int = 10, only_pending: bool = False) ->
         async with db.execute(query, (limit,)) as cursor:
             rows = await cursor.fetchall()
             return [dict(r) for r in rows]
-

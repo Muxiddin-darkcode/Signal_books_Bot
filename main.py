@@ -98,8 +98,11 @@ async def main():
         logger.error(
             "\n" + "!" * 60 + "\n"
             "DIQQAT! BOT_TOKEN ko'rsatilmagan!\n"
+            "Lokalda: .env fayliga BOT_TOKEN kiriting.\n"
+            "Render'da: Dashboard -> Environment bo'limiga BOT_TOKEN qo'shing!\n"
             "!" * 60
         )
+        await asyncio.sleep(60)
         return
 
     # Proxy mavjud bo'lsa

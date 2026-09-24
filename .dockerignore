@@ -4,6 +4,9 @@ __pycache__/
 *.pyo
 .git/
 .env
+serviceAccountKey.json
+firebase-key.json
+*firebase*.json
 *.db
 *.sqlite3
 Signal_books_Bot/

@@ -123,30 +123,48 @@ Telegram foydalanuvchilariga yanada chiroyli ko'rinishi uchun:
 
 ---
 
+### 5. Firebase Firestore Sozlash (Tavsiya etiladi - 24/7 Doimiy Baza):
+Bot ma'lumotlari (foydalanuvchilar, sozlamalar, takliflar) server qayta ishga tushganda o'chib ketmasligi uchun Firebase Firestore'ga ulangan:
+1. [Firebase Console](https://console.firebase.google.com/) ga kiring va yangi loyiha oching.
+2. **Build** -> **Firestore Database** bo'limiga kirib, **Create database** tugmasini bosing (Start in production mode yoki test mode).
+3. **Project Settings** (sozlamalar tishli g'ildiragi) -> **Service accounts** bo'limiga o'ting.
+4. **Generate new private key** tugmasini bosing. Sizga `.json` fayl yuklanadi.
+5. Yuklangan fayl nomini **`serviceAccountKey.json`** deb o'zgartirib, loyihaning asosiy papkasiga tashlang.
+6. Agar sizda avvalgi SQLite bazasida ma'lumotlar bo'lsa, ularni Firebase'ga ko'chirish uchun quyidagi buyruqni ishga tushiring:
+   ```bash
+   python migrate_sqlite_to_firebase.py
+   ```
+
+---
+
 ## 📁 Loyiha Strukturasi
 
 ```
 Signal books bot/
-├── .env                     # Sozlamalar (Token, Adminlar, Sayt havolasi)
-├── .env.example             # Namuna sozlamalar fayli
-├── requirements.txt         # Kerakli Python kutubxonalari
-├── run.bat                  # Bir marta bosish bilan ishga tushirish fayli
-├── main.py                  # Asosiy ishga tushirish skripti
-├── signal_books.db          # SQLite ma'lumotlar bazasi (avtomatik yaratiladi)
+├── .env                          # Sozlamalar (Token, Adminlar, Sayt havolasi, Firebase)
+├── .env.example                  # Namuna sozlamalar fayli
+├── requirements.txt              # Kerakli Python kutubxonalari (aiogram, firebase-admin va h.k.)
+├── run.bat                       # Bir marta bosish bilan ishga tushirish fayli
+├── main.py                       # Asosiy ishga tushirish skripti
+├── migrate_sqlite_to_firebase.py # SQLite'dan Firebase'ga ko'chirish skripti
+├── serviceAccountKey.json        # Firebase Admin kaliti (siz qo'shasiz, gitga kirmaydi)
+├── signal_books.db               # SQLite ma'lumotlar bazasi (zaxira)
 └── bot/
-    ├── config.py            # Konfiguratsiya
+    ├── config.py                 # Konfiguratsiya va sozlamalar
     ├── database/
-    │   └── db.py            # Ma'lumotlar bazasi operatsiyalari
+    │   ├── db.py                 # Asosiy DB router (Firebase va SQLite)
+    │   └── firebase_db.py        # Firebase Firestore integratsiyasi
     ├── handlers/
-    │   ├── admin.py         # Admin panel handlerlari
-    │   └── user.py          # Foydalanuvchi buyruqlari
+    │   ├── admin.py              # Admin panel handlerlari
+    │   └── user.py               # Foydalanuvchi buyruqlari
     ├── keyboards/
-    │   ├── admin_kb.py      # Admin inline tugmalari
-    │   └── user_kb.py       # Foydalanuvchi menyu va Web App tugmalari
+    │   ├── admin_kb.py           # Admin inline tugmalari
+    │   └── user_kb.py            # Foydalanuvchi menyu va Web App tugmalari
     ├── middlewares/
-    │   └── db_middleware.py # Foydalanuvchilarni avtomatik bazaga kiritish
+    │   └── db_middleware.py      # Foydalanuvchilarni avtomatik bazaga kiritish
     ├── states/
-    │   └── admin_states.py  # FSM holatlari (broadcast, url o'zgartirish)
+    │   └── admin_states.py       # FSM holatlari (broadcast, url o'zgartirish)
     └── utils/
-        └── setup_bot.py     # Yordamchi sozlamalar
+        └── setup_bot.py          # Yordamchi sozlamalar
 ```
+
