@@ -1,22 +1,24 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 def get_admin_dashboard_kb() -> InlineKeyboardMarkup:
-    """Admin boshqaruv paneli tugmalari (rangli fonlar bilan)"""
+    """Admin boshqaruv paneli tugmalari (ekranga to'liq sig'adigan qilib)"""
     buttons = [
         [
             InlineKeyboardButton(text="📊 Statistika", callback_data="admin_action:stats", style="primary"),
-            InlineKeyboardButton(text="📢 Xabar tarqatish", callback_data="admin_action:broadcast", style="primary"),
+            InlineKeyboardButton(text="📢 Xabar yuborish", callback_data="admin_action:broadcast", style="primary"),
         ],
         [
             InlineKeyboardButton(text="💡 Kitob takliflari", callback_data="admin_action:suggestions", style="primary"),
-            InlineKeyboardButton(text="🌐 Web App URL sozlash", callback_data="admin_action:set_url", style="primary"),
+            InlineKeyboardButton(text="🌐 Sayt havolasi", callback_data="admin_action:set_url", style="primary"),
         ],
         [
             InlineKeyboardButton(text="📢 Majburiy kanal", callback_data="admin_action:channel", style="primary"),
             InlineKeyboardButton(text="✏️ Matnlarni tahrirlash", callback_data="admin_action:texts", style="primary"),
         ],
         [
-            InlineKeyboardButton(text="📥 Foydalanuvchilar (CSV)", callback_data="admin_action:export", style="primary"),
+            InlineKeyboardButton(text="📥 Foydalanuvchilar bazasi (CSV)", callback_data="admin_action:export", style="primary"),
+        ],
+        [
             InlineKeyboardButton(text="🔄 Menyu tugmasini yangilash", callback_data="admin_action:refresh_menu", style="success"),
         ],
         [
@@ -35,14 +37,41 @@ def get_cancel_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_broadcast_confirm_kb() -> InlineKeyboardMarkup:
-    """Xabar tarqatishni tasdiqlash tugmasi"""
+    """Xabar tarqatishni tasdiqlash tugmalari"""
     buttons = [
         [
             InlineKeyboardButton(text="✅ Barchaga yuborish", callback_data="admin_action:confirm_broadcast", style="success"),
+        ],
+        [
+            InlineKeyboardButton(text="🚀 Mini App tugmasi bilan", callback_data="admin_action:confirm_broadcast_webapp", style="primary"),
+        ],
+        [
+            InlineKeyboardButton(text="👁 O'zimga sinab ko'rish (Preview)", callback_data="admin_action:preview_broadcast", style="primary"),
+        ],
+        [
             InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_action:cancel", style="danger")
         ]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_support_admin_kb(msg_id: int) -> InlineKeyboardMarkup:
+    """Yangi kelgan murojaat ostidagi admin javob tugmasi"""
+    buttons = [
+        [
+            InlineKeyboardButton(text="✍️ Javob yozish", callback_data=f"support_action:reply:{msg_id}", style="primary")
+        ]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_cancel_support_reply_kb() -> InlineKeyboardMarkup:
+    """Murojaatga javob yozishni bekor qilish tugmasi"""
+    buttons = [
+        [
+            InlineKeyboardButton(text="❌ Bekor qilish", callback_data="support_action:cancel_reply", style="danger")
+        ]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
 
 def get_channel_manage_kb(has_channel: bool) -> InlineKeyboardMarkup:
     """Majburiy kanal sozlamalari"""
@@ -56,7 +85,7 @@ def get_channel_manage_kb(has_channel: bool) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="🗑 Majburiy obunani o'chirish", callback_data="admin_action:remove_channel", style="danger")
         ])
     buttons.append([
-        InlineKeyboardButton(text="🔙 Boshqaruv paneliga qaytish", callback_data="admin_action:back_to_menu", style="primary")
+        InlineKeyboardButton(text="🔙 Orqaga", callback_data="admin_action:back_to_menu", style="primary")
     ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -67,10 +96,10 @@ def get_texts_manage_kb() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="ℹ️ 'Biz haqimizda' matni", callback_data="admin_action:edit_about", style="primary")
         ],
         [
-            InlineKeyboardButton(text="📞 'Bog'lanish / Yordam' matni", callback_data="admin_action:edit_contact", style="primary")
+            InlineKeyboardButton(text="📞 'Bog'lanish' matni", callback_data="admin_action:edit_contact", style="primary")
         ],
         [
-            InlineKeyboardButton(text="🔙 Boshqaruv paneliga qaytish", callback_data="admin_action:back_to_menu", style="primary")
+            InlineKeyboardButton(text="🔙 Orqaga", callback_data="admin_action:back_to_menu", style="primary")
         ]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -84,7 +113,7 @@ def get_suggestion_admin_kb(suggestion_id: int, status: str = "pending") -> Inli
             InlineKeyboardButton(text="❌ Rad etish", callback_data=f"suggest_action:reject:{suggestion_id}", style="danger")
         ])
     buttons.append([
-        InlineKeyboardButton(text="✍️ Foydalanuvchiga javob yozish", callback_data=f"suggest_action:reply:{suggestion_id}", style="primary")
+        InlineKeyboardButton(text="✍️ Javob yozish", callback_data=f"suggest_action:reply:{suggestion_id}", style="primary")
     ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -102,7 +131,7 @@ def get_suggestions_list_kb(suggestions: list[dict]) -> InlineKeyboardMarkup:
             )
         ])
     buttons.append([
-        InlineKeyboardButton(text="🔙 Boshqaruv paneliga qaytish", callback_data="admin_action:back_to_menu", style="primary")
+        InlineKeyboardButton(text="🔙 Orqaga", callback_data="admin_action:back_to_menu", style="primary")
     ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -114,4 +143,5 @@ def get_cancel_reply_kb() -> InlineKeyboardMarkup:
         ]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
 

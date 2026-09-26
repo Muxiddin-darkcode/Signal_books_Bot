@@ -25,7 +25,7 @@ async def set_global_menu_button(bot: Bot, web_app_url: str):
         if web_app_url and web_app_url.startswith("https://"):
             await bot.set_chat_menu_button(
                 menu_button=MenuButtonWebApp(
-                    text="Open",
+                    text="Signal Books",
                     web_app=WebAppInfo(url=web_app_url)
                 )
             )

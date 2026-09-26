@@ -7,11 +7,11 @@ from aiogram.types import (
 )
 
 def get_main_keyboard(web_app_url: str) -> ReplyKeyboardMarkup:
-    """Foydalanuvchi uchun asosiy reply tugmalar (rangli fonli)"""
+    """Foydalanuvchi uchun asosiy reply tugmalar (ekranga to'liq sig'adigan ixcham tartib)"""
     keyboard = [
         [
             KeyboardButton(
-                text="📚 Signal Books (Saytni ochish)",
+                text="📚 Signal Books",
                 web_app=WebAppInfo(url=web_app_url),
                 style="success"  # Yashil rangli fon
             )
@@ -20,9 +20,15 @@ def get_main_keyboard(web_app_url: str) -> ReplyKeyboardMarkup:
             KeyboardButton(
                 text="💡 Kitob taklif qilish",
                 style="primary"  # Ko'k rangli fon
+            )
+        ],
+        [
+            KeyboardButton(
+                text="📋 Takliflarim",
+                style="primary"  # Ko'k rangli fon
             ),
             KeyboardButton(
-                text="🔗 Do'stlarga ulashish",
+                text="📞 Bog'lanish",
                 style="primary"  # Ko'k rangli fon
             )
         ],
@@ -32,7 +38,7 @@ def get_main_keyboard(web_app_url: str) -> ReplyKeyboardMarkup:
                 style="primary"  # Ko'k rangli fon
             ),
             KeyboardButton(
-                text="📞 Bog'lanish / Yordam",
+                text="🔗 Ulashish",
                 style="primary"  # Ko'k rangli fon
             )
         ]
@@ -44,20 +50,20 @@ def get_main_keyboard(web_app_url: str) -> ReplyKeyboardMarkup:
     )
 
 def get_web_app_inline_kb(web_app_url: str) -> InlineKeyboardMarkup:
-    """Xabarlar ostiga qo'yiladigan inline Web App tugmasi (rangli fonli)"""
+    """Xabarlar ostiga qo'yiladigan inline Web App tugmasi"""
     buttons = [
         [
             InlineKeyboardButton(
-                text="🚀 Signal Books Mini App",
+                text="🚀 Saytni ochish",
                 web_app=WebAppInfo(url=web_app_url),
-                style="success"  # Yashil rangli fon
+                style="success"
             )
         ],
         [
             InlineKeyboardButton(
                 text="🌐 Brauzerda ochish",
                 url=web_app_url,
-                style="primary"  # Ko'k rangli fon
+                style="primary"
             )
         ]
     ]
@@ -103,6 +109,20 @@ def get_suggestion_skip_kb() -> InlineKeyboardMarkup:
     buttons = [
         [
             InlineKeyboardButton(text="➡️ O'tkazib yuborish", callback_data="skip_suggestion_step", style="primary"),
+        ],
+        [
+            InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_suggestion", style="danger")
+        ]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_suggestion_photo_skip_kb() -> InlineKeyboardMarkup:
+    """Kitob muqovasi rasmini o'tkazib yuborish yoki bekor qilish"""
+    buttons = [
+        [
+            InlineKeyboardButton(text="➡️ Rasmsiz davom etish", callback_data="skip_suggestion_photo", style="primary"),
+        ],
+        [
             InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_suggestion", style="danger")
         ]
     ]
@@ -116,4 +136,34 @@ def get_cancel_suggestion_kb() -> InlineKeyboardMarkup:
         ]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_contact_action_kb(web_app_url: str) -> InlineKeyboardMarkup:
+    """Bog'lanish bo'limida adminga yozish va saytni ochish tugmalari"""
+    buttons = [
+        [
+            InlineKeyboardButton(
+                text="✍️ Adminga xabar yozish",
+                callback_data="user_action:start_support",
+                style="success"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="🚀 Saytni ochish",
+                web_app=WebAppInfo(url=web_app_url),
+                style="primary"
+            )
+        ]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_support_cancel_kb() -> InlineKeyboardMarkup:
+    """Murojaat yozishni bekor qilish tugmasi"""
+    buttons = [
+        [
+            InlineKeyboardButton(text="❌ Bekor qilish", callback_data="user_action:cancel_support", style="danger")
+        ]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
 

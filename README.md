@@ -22,8 +22,10 @@ Ushbu bot **Signal Books** loyihangizning veb-saytini Telegram ichida zamonaviy 
 - **Pastki menyu tugmasi:** Telegram chatining pastki chap burchagidagi doimiy "Signal Books" tugmasi.
 - **Inline tugma:** Har bir xabar ostidagi to'g'ridan-to'g'ri Web App havolasi.
 - **Biz haqimizda & Aloqa:** Do'kon ma'lumotlari va qo'llab-quvvatlash xizmati.
-- **Kitob taklif qilish:** Foydalanuvchilar o'zlari istagan kitoblarni taklif qilish imkoniyati.
-- **Ulashish:** Botni do'stlarga bir tugma bilan tavsiya qilish.
+- **💬 Adminga Murojaat / Support:** Bot ichidan turib adminga to'g'ridan-to'g'ri savol, murojaat yoki buyurtma yuborish.
+- **💡 Kitob taklif qilish (Rasm bilan):** Foydalanuvchilar o'zlari istagan kitob nomini, muallifini va muqova rasmini yuborish imkoniyati.
+- **📋 Mening takliflarim:** Foydalanuvchi o'zi taklif qilgan kitoblar holatini (⏳ Kutilmoqda, ✅ Qabul qilindi, ❌ Rad etildi) jonli kuzatib borishi.
+- **🔗 Ulashish:** Botni do'stlarga bir tugma bilan tavsiya qilish.
 
 ### 👑 Admin Panel (`/admin`):
 - 📊 **Jonli Statistika:**
@@ -32,10 +34,14 @@ Ushbu bot **Signal Books** loyihangizning veb-saytini Telegram ichida zamonaviy 
   - Botni bloklaganlar
   - Bugungi yangi tashrif buyuruvchilar
 - 💡 **Kitob Takliflari Boshqaruvi:**
-  - Foydalanuvchilar yuborgan takliflarni ko'rish, qabul qilish yoki rad etish
+  - Foydalanuvchilar yuborgan takliflarni (muqova rasmi bilan) ko'rish, qabul qilish yoki rad etish
   - Foydalanuvchiga to'g'ridan-to'g'ri bot orqali javob xati yozish
+- 💬 **Murojaatlarni (Support) Boshqarish:**
+  - Foydalanuvchilar yuborgan savollarga bot orqali to'g'ridan-to'g'ri tezkor javob yozish
 - 📢 **Kengaytirilgan Xabar Tarqatish (Broadcast):**
   - Barcha foydalanuvchilarga matn, rasm, video, e'lonlarni yuborish.
+  - **👁 O'zida sinab ko'rish (Preview):** Tarqatishdan oldin admin o'z profiliga xabarni sinov tariqasida yuborib ko'rishi mumkin.
+  - **🚀 Mini App tugmasi bilan yuborish:** Xabar ostiga avtomatik Web App ochuvchi tugma ulab yuborish.
   - Telegram cheklovlariga (flood limit) tushmaslik uchun xavfsiz sekinlik bilan yuborish.
   - Bloklagan foydalanuvchilarni avtomatik aniqlash va hisobot berish.
 - 🌐 **Dinamik Web App URL:**

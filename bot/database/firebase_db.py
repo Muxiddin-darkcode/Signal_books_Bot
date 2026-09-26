@@ -314,7 +314,16 @@ def _increment_suggestion_id(transaction, counter_ref):
     transaction.set(counter_ref, {"last_id": new_id}, merge=True)
     return new_id
 
-def _sync_add_book_suggestion(db, user_id: int, username: str | None, full_name: str | None, book_title: str, author: str | None, note: str | None) -> int:
+def _sync_add_book_suggestion(
+    db,
+    user_id: int,
+    username: str | None,
+    full_name: str | None,
+    book_title: str,
+    author: str | None,
+    note: str | None,
+    photo_file_id: str | None = None
+) -> int:
     counter_ref = db.collection("counters").document("suggestions")
     transaction = db.transaction()
     new_id = _increment_suggestion_id(transaction, counter_ref)
@@ -329,10 +338,12 @@ def _sync_add_book_suggestion(db, user_id: int, username: str | None, full_name:
         "book_title": book_title,
         "author": author or "",
         "note": note or "",
+        "photo_file_id": photo_file_id or "",
         "status": "pending",
         "created_at": now
     })
     return new_id
+
 
 def _sync_get_book_suggestion(db, suggestion_id: int) -> dict | None:
     doc = db.collection("book_suggestions").document(str(suggestion_id)).get()
@@ -397,6 +408,66 @@ def _sync_get_recent_suggestions(db, limit: int, only_pending: bool) -> list[dic
         items.sort(key=lambda x: x.get("id", 0), reverse=True)
         return items[:limit]
 
+def _sync_get_user_suggestions(db, user_id: int) -> list[dict]:
+    coll = db.collection("book_suggestions")
+    try:
+        docs = coll.where(filter=FieldFilter("user_id", "==", int(user_id))).stream()
+        items = [doc.to_dict() for doc in docs]
+        items.sort(key=lambda x: x.get("id", 0), reverse=True)
+        return items
+    except Exception as e:
+        logger.error(f"Foydalanuvchi takliflarini olishda xatolik: {e}")
+        return []
+
+@firestore.transactional
+def _increment_support_id(transaction, counter_ref):
+    snapshot = counter_ref.get(transaction=transaction)
+    current_id = 0
+    if snapshot.exists:
+        current_id = snapshot.to_dict().get("last_id", 0)
+    new_id = current_id + 1
+    transaction.set(counter_ref, {"last_id": new_id}, merge=True)
+    return new_id
+
+def _sync_add_support_message(
+    db,
+    user_id: int,
+    username: str | None,
+    full_name: str | None,
+    message_text: str,
+    photo_file_id: str | None = None
+) -> int:
+    counter_ref = db.collection("counters").document("support")
+    transaction = db.transaction()
+    new_id = _increment_support_id(transaction, counter_ref)
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    doc_ref = db.collection("support_messages").document(str(new_id))
+    doc_ref.set({
+        "id": new_id,
+        "user_id": int(user_id),
+        "username": username or "",
+        "full_name": full_name or "",
+        "message_text": message_text or "",
+        "photo_file_id": photo_file_id or "",
+        "status": "pending",
+        "created_at": now
+    })
+    return new_id
+
+def _sync_get_support_message(db, msg_id: int) -> dict | None:
+    doc = db.collection("support_messages").document(str(msg_id)).get()
+    if doc.exists:
+        data = doc.to_dict()
+        data["id"] = int(msg_id)
+        return data
+    return None
+
+def _sync_update_support_status(db, msg_id: int, status: str):
+    db.collection("support_messages").document(str(msg_id)).update({
+        "status": status
+    })
+
 # ==================== ASYNC EXPORTED API ====================
 
 async def fb_init_db():
@@ -438,10 +509,11 @@ async def fb_add_book_suggestion(
     full_name: str | None,
     book_title: str,
     author: str | None = None,
-    note: str | None = None
+    note: str | None = None,
+    photo_file_id: str | None = None
 ) -> int:
     db = get_firestore_client()
-    return await asyncio.to_thread(_sync_add_book_suggestion, db, user_id, username, full_name, book_title, author, note)
+    return await asyncio.to_thread(_sync_add_book_suggestion, db, user_id, username, full_name, book_title, author, note, photo_file_id)
 
 async def fb_get_book_suggestion(suggestion_id: int) -> dict | None:
     db = get_firestore_client()
@@ -458,3 +530,26 @@ async def fb_get_suggestions_stats() -> dict:
 async def fb_get_recent_suggestions(limit: int = 10, only_pending: bool = False) -> list[dict]:
     db = get_firestore_client()
     return await asyncio.to_thread(_sync_get_recent_suggestions, db, limit, only_pending)
+
+async def fb_get_user_suggestions(user_id: int) -> list[dict]:
+    db = get_firestore_client()
+    return await asyncio.to_thread(_sync_get_user_suggestions, db, user_id)
+
+async def fb_add_support_message(
+    user_id: int,
+    username: str | None,
+    full_name: str | None,
+    message_text: str,
+    photo_file_id: str | None = None
+) -> int:
+    db = get_firestore_client()
+    return await asyncio.to_thread(_sync_add_support_message, db, user_id, username, full_name, message_text, photo_file_id)
+
+async def fb_get_support_message(msg_id: int) -> dict | None:
+    db = get_firestore_client()
+    return await asyncio.to_thread(_sync_get_support_message, db, msg_id)
+
+async def fb_update_support_status(msg_id: int, status: str):
+    db = get_firestore_client()
+    await asyncio.to_thread(_sync_update_support_status, db, msg_id, status)
+

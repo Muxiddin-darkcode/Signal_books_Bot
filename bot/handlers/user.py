@@ -3,18 +3,27 @@ from aiogram.types import Message, CallbackQuery, MenuButtonWebApp, WebAppInfo
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 
-from bot.database.db import get_setting, add_or_update_user, add_book_suggestion
+from bot.database.db import (
+    get_setting,
+    add_or_update_user,
+    add_book_suggestion,
+    get_user_suggestions,
+    add_support_message,
+)
 from bot.config import DEFAULT_WEB_APP_URL, ADMIN_IDS
-from bot.states.user_states import BookSuggestionStates
+from bot.states.user_states import BookSuggestionStates, SupportStates
 from bot.keyboards.user_kb import (
     get_main_keyboard,
     get_web_app_inline_kb,
     get_share_inline_kb,
     get_subscription_check_kb,
     get_suggestion_skip_kb,
+    get_suggestion_photo_skip_kb,
     get_cancel_suggestion_kb,
+    get_contact_action_kb,
+    get_support_cancel_kb,
 )
-from bot.keyboards.admin_kb import get_suggestion_admin_kb
+from bot.keyboards.admin_kb import get_suggestion_admin_kb, get_support_admin_kb
 from bot.utils.setup_bot import is_user_subscribed
 
 user_router = Router(name="user_router")
@@ -29,7 +38,7 @@ async def send_welcome_content(message: Message, bot: Bot, user_id: int):
             await bot.set_chat_menu_button(
                 chat_id=user_id,
                 menu_button=MenuButtonWebApp(
-                    text="Open",
+                    text="Signal Books",
                     web_app=WebAppInfo(url=web_app_url)
                 )
             )
@@ -133,9 +142,42 @@ async def btn_about(message: Message):
 @user_router.message(F.text.contains("Bog'lanish"))
 async def btn_contact(message: Message):
     contact_text = await get_setting("contact_text")
-    await message.answer(contact_text)
+    web_app_url = await get_setting("web_app_url", DEFAULT_WEB_APP_URL)
+    await message.answer(
+        contact_text,
+        reply_markup=get_contact_action_kb(web_app_url)
+    )
 
-@user_router.message(F.text.contains("Do'stlarga ulashish"))
+@user_router.message(F.text.contains("Takliflarim") | F.text.contains("takliflarim"))
+async def btn_my_suggestions(message: Message):
+    """Foydalanuvchining o'z kitob takliflari va ularning holati"""
+    user_id = message.from_user.id
+    items = await get_user_suggestions(user_id)
+    if not items:
+        web_app_url = await get_setting("web_app_url", DEFAULT_WEB_APP_URL)
+        await message.answer(
+            "📋 <b>Siz hali birorta ham kitob taklif qilmadingiz.</b>\n\n"
+            "O'zingiz istagan kitobni do'konimizda ko'rishni xohlasangiz, "
+            "pastdagi <b>«💡 Kitob taklif qilish»</b> tugmasini bosing!",
+            reply_markup=get_web_app_inline_kb(web_app_url)
+        )
+        return
+
+    text = f"📋 <b>Sizning kitob takliflaringiz ({len(items)} ta):</b>\n\n"
+    status_map = {
+        "pending": "⏳ Ko'rib chiqilmoqda",
+        "accepted": "✅ Qabul qilindi (do'konga qo'shiladi)",
+        "rejected": "❌ Rad etildi"
+    }
+    for idx, item in enumerate(items[:10], start=1):
+        status_str = status_map.get(item.get("status", "pending"), item.get("status", "pending"))
+        author_str = f" ({item.get('author')})" if item.get("author") else ""
+        date_str = str(item.get("created_at", ""))[:16]
+        text += f"{idx}. <b>«{item.get('book_title')}»</b>{author_str}\n   Holat: {status_str}\n   <i>Sana: {date_str}</i>\n\n"
+
+    await message.answer(text)
+
+@user_router.message(F.text.contains("Ulashish") | F.text.contains("ulashish"))
 async def btn_share(message: Message, bot: Bot):
     bot_info = await bot.get_me()
     await message.answer(
@@ -145,7 +187,7 @@ async def btn_share(message: Message, bot: Bot):
 
 # --- Kitob taklif qilish FSM bo'limi ---
 
-@user_router.message(F.text.contains("Kitob taklif qilish"))
+@user_router.message(F.text.contains("Kitob taklif") | F.text.contains("taklif qilish"))
 async def btn_suggest_book_start(message: Message, state: FSMContext):
     """Foydalanuvchi kitob taklif qilishni boshlaganda"""
     await state.clear()
@@ -186,11 +228,11 @@ async def process_suggest_title(message: Message, state: FSMContext):
 @user_router.callback_query(F.data == "skip_suggestion_step", BookSuggestionStates.waiting_for_author)
 async def skip_suggest_author(call: CallbackQuery, state: FSMContext):
     await state.update_data(author=None)
-    await state.set_state(BookSuggestionStates.waiting_for_note)
+    await state.set_state(BookSuggestionStates.waiting_for_photo)
     await call.message.edit_text(
-        "📝 <b>3-qadam:</b> Ushbu kitob haqida qo'shimcha izoh yoki tavsif bormi?\n"
-        "<i>(Masalan: O'zbek tilidagi tarjimasi kerak, yoki 'O'tkazib yuborish' tugmasini bosing):</i>",
-        reply_markup=get_suggestion_skip_kb()
+        "📸 <b>3-qadam:</b> Ushbu kitobning <b>muqovasi rasmi</b> bormi?\n"
+        "<i>(Kitob rasmini yuborishingiz yoki 'Rasmsiz davom etish' tugmasini bosishingiz mumkin):</i>",
+        reply_markup=get_suggestion_photo_skip_kb()
     )
     await call.answer()
 
@@ -198,18 +240,49 @@ async def skip_suggest_author(call: CallbackQuery, state: FSMContext):
 async def process_suggest_author(message: Message, state: FSMContext):
     author = (message.text or "").strip()
     await state.update_data(author=author)
-    await state.set_state(BookSuggestionStates.waiting_for_note)
+    await state.set_state(BookSuggestionStates.waiting_for_photo)
     await message.answer(
         f"✍️ Muallif: <b>{author}</b>\n\n"
-        "<b>3-qadam:</b> Ushbu kitob haqida qo'shimcha izoh yoki tavsif bormi?\n"
-        "<i>(Masalan: Qaysi nashriyot yoki til, yoki 'O'tkazib yuborish' tugmasini bosing):</i>",
+        "<b>3-qadam:</b> Ushbu kitobning <b>muqovasi rasmi</b> bormi?\n"
+        "<i>(Kitob rasmini yuborishingiz yoki 'Rasmsiz davom etish' tugmasini bosishingiz mumkin):</i>",
+        reply_markup=get_suggestion_photo_skip_kb()
+    )
+
+@user_router.callback_query(F.data == "skip_suggestion_photo", BookSuggestionStates.waiting_for_photo)
+async def skip_suggest_photo(call: CallbackQuery, state: FSMContext):
+    await state.update_data(photo_file_id=None)
+    await state.set_state(BookSuggestionStates.waiting_for_note)
+    await call.message.edit_text(
+        "📝 <b>4-qadam:</b> Ushbu kitob haqida qo'shimcha izoh yoki tavsif bormi?\n"
+        "<i>(Masalan: O'zbek tilidagi tarjimasi kerak, yoki 'O'tkazib yuborish' tugmasini bosing):</i>",
         reply_markup=get_suggestion_skip_kb()
+    )
+    await call.answer()
+
+@user_router.message(BookSuggestionStates.waiting_for_photo, F.photo)
+async def process_suggest_photo(message: Message, state: FSMContext):
+    photo_file_id = message.photo[-1].file_id
+    await state.update_data(photo_file_id=photo_file_id)
+    await state.set_state(BookSuggestionStates.waiting_for_note)
+    await message.answer(
+        "✅ <b>Kitob rasmi qabul qilindi!</b>\n\n"
+        "<b>4-qadam:</b> Ushbu kitob haqida qo'shimcha izoh yoki tavsif bormi?\n"
+        "<i>(Masalan: O'zbek tilidagi tarjimasi kerak, yoki 'O'tkazib yuborish' tugmasini bosing):</i>",
+        reply_markup=get_suggestion_skip_kb()
+    )
+
+@user_router.message(BookSuggestionStates.waiting_for_photo)
+async def process_suggest_photo_fallback(message: Message):
+    await message.answer(
+        "⚠️ Iltimos, kitob muqovasining rasmini yuboring yoki quyidagi <b>'Rasmsiz davom etish'</b> tugmasini bosing:",
+        reply_markup=get_suggestion_photo_skip_kb()
     )
 
 async def _finish_book_suggestion(user_id: int, user_data: dict, bot: Bot, from_user):
     book_title = user_data.get("book_title", "")
     author = user_data.get("author") or "Ko'rsatilmadi"
     note = user_data.get("note") or "Mavjud emas"
+    photo_file_id = user_data.get("photo_file_id")
 
     # Bazaga yozish
     suggestion_id = await add_book_suggestion(
@@ -218,7 +291,8 @@ async def _finish_book_suggestion(user_id: int, user_data: dict, bot: Bot, from_
         full_name=from_user.full_name,
         book_title=book_title,
         author=author if author != "Ko'rsatilmadi" else None,
-        note=note if note != "Mavjud emas" else None
+        note=note if note != "Mavjud emas" else None,
+        photo_file_id=photo_file_id
     )
 
     # Foydalanuvchiga tasdiq xabari
@@ -243,11 +317,19 @@ async def _finish_book_suggestion(user_id: int, user_data: dict, bot: Bot, from_
 
     for admin_id in ADMIN_IDS:
         try:
-            await bot.send_message(
-                chat_id=admin_id,
-                text=admin_notification,
-                reply_markup=get_suggestion_admin_kb(suggestion_id, status="pending")
-            )
+            if photo_file_id:
+                await bot.send_photo(
+                    chat_id=admin_id,
+                    photo=photo_file_id,
+                    caption=admin_notification,
+                    reply_markup=get_suggestion_admin_kb(suggestion_id, status="pending")
+                )
+            else:
+                await bot.send_message(
+                    chat_id=admin_id,
+                    text=admin_notification,
+                    reply_markup=get_suggestion_admin_kb(suggestion_id, status="pending")
+                )
         except Exception:
             pass
 
@@ -270,4 +352,80 @@ async def process_suggest_note(message: Message, state: FSMContext, bot: Bot):
     await state.clear()
     response_text = await _finish_book_suggestion(message.from_user.id, data, bot, message.from_user)
     await message.answer(response_text)
+
+# --- Murojaat / Support bo'limi ---
+
+@user_router.callback_query(F.data == "user_action:start_support")
+async def handle_start_support(call: CallbackQuery, state: FSMContext):
+    """Murojaat yozish jarayonini boshlash"""
+    await state.clear()
+    await state.set_state(SupportStates.waiting_for_message)
+    await call.message.answer(
+        "✍️ <b>Adminlarimizga murojaat yoki savolingizni yozing:</b>\n\n"
+        "Savol, taklif yoki buyurtmangiz haqida batafsil yozib yuboring (matn yoki rasm ko'rinishida):",
+        reply_markup=get_support_cancel_kb()
+    )
+    await call.answer()
+
+@user_router.callback_query(F.data == "user_action:cancel_support")
+async def handle_cancel_support(call: CallbackQuery, state: FSMContext):
+    """Murojaatni bekor qilish"""
+    await state.clear()
+    await call.message.edit_text("❌ Murojaat yozish bekor qilindi.")
+    await call.answer("Bekor qilindi")
+
+@user_router.message(SupportStates.waiting_for_message)
+async def process_support_message(message: Message, state: FSMContext, bot: Bot):
+    """Foydalanuvchi murojaatini qabul qilish va adminga uzatish"""
+    text_content = message.text or message.caption or ""
+    photo_file_id = message.photo[-1].file_id if message.photo else None
+
+    if not text_content and not photo_file_id:
+        await message.answer(
+            "⚠️ Iltimos, xabaringizni matn yoki rasm ko'rinishida yozing:",
+            reply_markup=get_support_cancel_kb()
+        )
+        return
+
+    await state.clear()
+    user = message.from_user
+    msg_id = await add_support_message(
+        user_id=user.id,
+        username=user.username,
+        full_name=user.full_name,
+        message_text=text_content or "Rasm yuborildi",
+        photo_file_id=photo_file_id
+    )
+
+    await message.answer(
+        "✅ <b>Murojaatingiz ma'muriyatga muvaffaqiyatli yetkazildi!</b>\n\n"
+        "Tez orada operatorlarimiz xabaringizni ko'rib chiqib, bot orqali javob berishadi. 📚"
+    )
+
+    # Adminlarga yuborish
+    username_str = f"@{user.username}" if user.username else "mavjud emas"
+    admin_notif = (
+        f"📩 <b>Yangi murojaat!</b> (#{msg_id})\n\n"
+        f"👤 <b>Foydalanuvchi:</b> {user.full_name} ({username_str})\n"
+        f"🆔 <b>ID:</b> <code>{user.id}</code>\n"
+        f"📝 <b>Xabar:</b>\n{text_content}"
+    )
+
+    for admin_id in ADMIN_IDS:
+        try:
+            if photo_file_id:
+                await bot.send_photo(
+                    chat_id=admin_id,
+                    photo=photo_file_id,
+                    caption=admin_notif,
+                    reply_markup=get_support_admin_kb(msg_id)
+                )
+            else:
+                await bot.send_message(
+                    chat_id=admin_id,
+                    text=admin_notif,
+                    reply_markup=get_support_admin_kb(msg_id)
+                )
+        except Exception:
+            pass
 

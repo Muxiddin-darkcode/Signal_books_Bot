@@ -17,6 +17,10 @@ from bot.database.firebase_db import (
     fb_update_suggestion_status,
     fb_get_suggestions_stats,
     fb_get_recent_suggestions,
+    fb_get_user_suggestions,
+    fb_add_support_message,
+    fb_get_support_message,
+    fb_update_support_status,
 )
 
 logger = logging.getLogger(__name__)
@@ -85,6 +89,27 @@ async def init_db():
                 book_title TEXT NOT NULL,
                 author TEXT,
                 note TEXT,
+                photo_file_id TEXT,
+                status TEXT DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Eski SQLite bazasiga photo_file_id ustunini xavfsiz qo'shish
+        try:
+            await db.execute("ALTER TABLE book_suggestions ADD COLUMN photo_file_id TEXT")
+        except Exception:
+            pass
+
+        # Qo'llab-quvvatlash (Support / Murojaat) xabarlari jadvali
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS support_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                username TEXT,
+                full_name TEXT,
+                message_text TEXT,
+                photo_file_id TEXT,
                 status TEXT DEFAULT 'pending',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -236,18 +261,19 @@ async def add_book_suggestion(
     full_name: str | None,
     book_title: str,
     author: str | None = None,
-    note: str | None = None
+    note: str | None = None,
+    photo_file_id: str | None = None
 ) -> int:
     """Yangi kitob taklifini saqlash va ID sini qaytarish"""
     if is_firebase_available():
-        return await fb_add_book_suggestion(user_id, username, full_name, book_title, author, note)
+        return await fb_add_book_suggestion(user_id, username, full_name, book_title, author, note, photo_file_id)
 
     async with aiosqlite.connect(DB_PATH) as db:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         cursor = await db.execute("""
-            INSERT INTO book_suggestions (user_id, username, full_name, book_title, author, note, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
-        """, (user_id, username, full_name, book_title, author, note, now))
+            INSERT INTO book_suggestions (user_id, username, full_name, book_title, author, note, photo_file_id, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+        """, (user_id, username, full_name, book_title, author, note, photo_file_id, now))
         await db.commit()
         return cursor.lastrowid
 
@@ -307,3 +333,58 @@ async def get_recent_suggestions(limit: int = 10, only_pending: bool = False) ->
         async with db.execute(query, (limit,)) as cursor:
             rows = await cursor.fetchall()
             return [dict(r) for r in rows]
+
+async def get_user_suggestions(user_id: int) -> list[dict]:
+    """Foydalanuvchining o'z kitob takliflari ro'yxatini olish"""
+    if is_firebase_available():
+        return await fb_get_user_suggestions(user_id)
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM book_suggestions WHERE user_id = ? ORDER BY id DESC",
+            (user_id,)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
+
+async def add_support_message(
+    user_id: int,
+    username: str | None,
+    full_name: str | None,
+    message_text: str,
+    photo_file_id: str | None = None
+) -> int:
+    """Foydalanuvchi murojaatini saqlash va ID sini qaytarish"""
+    if is_firebase_available():
+        return await fb_add_support_message(user_id, username, full_name, message_text, photo_file_id)
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor = await db.execute("""
+            INSERT INTO support_messages (user_id, username, full_name, message_text, photo_file_id, status, created_at)
+            VALUES (?, ?, ?, ?, ?, 'pending', ?)
+        """, (user_id, username, full_name, message_text, photo_file_id, now))
+        await db.commit()
+        return cursor.lastrowid
+
+async def get_support_message(msg_id: int) -> dict | None:
+    """Murojaat ma'lumotlarini olish"""
+    if is_firebase_available():
+        return await fb_get_support_message(msg_id)
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM support_messages WHERE id = ?", (msg_id,)) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+async def update_support_status(msg_id: int, status: str):
+    """Murojaat holatini yangilash ('pending', 'replied')"""
+    if is_firebase_available():
+        await fb_update_support_status(msg_id, status)
+        return
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("UPDATE support_messages SET status = ? WHERE id = ?", (status, msg_id))
+        await db.commit()

@@ -112,6 +112,7 @@ def run_migration():
                 "book_title": sug["book_title"] or "",
                 "author": sug["author"] or "",
                 "note": sug["note"] or "",
+                "photo_file_id": (sug["photo_file_id"] if "photo_file_id" in sug.keys() else "") or "",
                 "status": sug["status"] or "pending",
                 "created_at": sug["created_at"] or ""
             }, merge=True)
@@ -126,6 +127,43 @@ def run_migration():
         print(f"✅ Firebase'ga ko'chirildi: {migrated_suggestions} ta taklif (So'nggi ID: {max_id}).")
     except Exception as e:
         print(f"⚠️ Kitob takliflarini ko'chirishda xatolik: {e}")
+
+    # --- 6. Murojaatlarni (support) ko'chirish ---
+    try:
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='support_messages'")
+        if cursor.fetchone():
+            cursor.execute("SELECT * FROM support_messages")
+            support_msgs = cursor.fetchall()
+            print(f"\n📩 SQLite'dan topilgan murojaatlar: {len(support_msgs)} ta")
+
+            support_ref = db.collection("support_messages")
+            max_sup_id = 0
+            migrated_support = 0
+            for sup in support_msgs:
+                s_id = int(sup["id"])
+                if s_id > max_sup_id:
+                    max_sup_id = s_id
+
+                support_ref.document(str(s_id)).set({
+                    "id": s_id,
+                    "user_id": int(sup["user_id"]),
+                    "username": sup["username"] or "",
+                    "full_name": sup["full_name"] or "",
+                    "message_text": sup["message_text"] or "",
+                    "photo_file_id": (sup["photo_file_id"] if "photo_file_id" in sup.keys() else "") or "",
+                    "status": sup["status"] or "pending",
+                    "created_at": sup["created_at"] or ""
+                }, merge=True)
+                migrated_support += 1
+
+            if max_sup_id > 0:
+                db.collection("counters").document("support").set({
+                    "last_id": max_sup_id
+                }, merge=True)
+
+            print(f"✅ Firebase'ga ko'chirildi: {migrated_support} ta murojaat.")
+    except Exception as e:
+        print(f"⚠️ Murojaatlarni ko'chirishda xatolik: {e}")
 
     conn.close()
 

@@ -24,6 +24,8 @@ from bot.database.db import (
     update_suggestion_status,
     get_suggestions_stats,
     get_recent_suggestions,
+    get_support_message,
+    update_support_status,
 )
 from bot.keyboards.admin_kb import (
     get_admin_dashboard_kb,
@@ -34,7 +36,9 @@ from bot.keyboards.admin_kb import (
     get_suggestion_admin_kb,
     get_suggestions_list_kb,
     get_cancel_reply_kb,
+    get_cancel_support_reply_kb,
 )
+from bot.keyboards.user_kb import get_web_app_inline_kb
 from bot.states.admin_states import AdminStates
 from bot.utils.setup_bot import set_global_menu_button
 
@@ -218,7 +222,26 @@ async def handle_admin_actions(call: CallbackQuery, state: FSMContext, bot: Bot)
         await set_global_menu_button(bot, web_app_url)
         await call.answer("✅ Menyu tugmasi yangilandi!", show_alert=True)
 
-    elif action == "confirm_broadcast":
+    elif action == "preview_broadcast":
+        data = await state.get_data()
+        from_chat_id = data.get("from_chat_id")
+        message_id = data.get("message_id")
+        if not from_chat_id or not message_id:
+            await call.answer("⚠️ Yuboriladigan xabar topilmadi!", show_alert=True)
+            return
+
+        try:
+            await bot.copy_message(
+                chat_id=call.from_user.id,
+                from_chat_id=from_chat_id,
+                message_id=message_id
+            )
+            await call.answer("✅ Sinov xabari profilingizga yuborildi!", show_alert=True)
+        except Exception as e:
+            await call.answer(f"Xatolik: {e}", show_alert=True)
+
+    elif action in ("confirm_broadcast", "confirm_broadcast_webapp"):
+        with_webapp = (action == "confirm_broadcast_webapp")
         data = await state.get_data()
         from_chat_id = data.get("from_chat_id")
         message_id = data.get("message_id")
@@ -230,6 +253,11 @@ async def handle_admin_actions(call: CallbackQuery, state: FSMContext, bot: Bot)
                 reply_markup=get_admin_dashboard_kb()
             )
             return
+
+        extra_kb = None
+        if with_webapp:
+            web_app_url = await get_setting("web_app_url", DEFAULT_WEB_APP_URL)
+            extra_kb = get_web_app_inline_kb(web_app_url)
 
         await call.message.edit_text("🚀 <b>Xabar tarqatish boshlandi...</b>\nIltimos kuting.")
 
@@ -252,7 +280,8 @@ async def handle_admin_actions(call: CallbackQuery, state: FSMContext, bot: Bot)
                 await bot.copy_message(
                     chat_id=user_id,
                     from_chat_id=from_chat_id,
-                    message_id=message_id
+                    message_id=message_id,
+                    reply_markup=extra_kb
                 )
                 sent_count += 1
                 await asyncio.sleep(0.04)  # Telegram flood limitiga tushmaslik uchun
@@ -262,7 +291,8 @@ async def handle_admin_actions(call: CallbackQuery, state: FSMContext, bot: Bot)
                     await bot.copy_message(
                         chat_id=user_id,
                         from_chat_id=from_chat_id,
-                        message_id=message_id
+                        message_id=message_id,
+                        reply_markup=extra_kb
                     )
                     sent_count += 1
                 except Exception:
@@ -274,8 +304,9 @@ async def handle_admin_actions(call: CallbackQuery, state: FSMContext, bot: Bot)
                 pass
 
         duration = round(time.time() - start_time, 2)
+        btn_info = " (Mini App tugmasi bilan)" if with_webapp else ""
         report = (
-            "✅ <b>Xabar tarqatish yakunlandi!</b>\n\n"
+            f"✅ <b>Xabar tarqatish yakunlandi!</b>{btn_info}\n\n"
             f"👥 <b>Jami foydalanuvchilar:</b> {total_users} ta\n"
             f"📥 <b>Yetkazildi:</b> {sent_count} ta\n"
             f"🚫 <b>Botni bloklaganlar:</b> {blocked_count} ta\n"
@@ -427,6 +458,20 @@ async def handle_suggest_view(call: CallbackQuery):
         f"📊 <b>Holat:</b> {status_str}"
     )
 
+    photo_file_id = item.get("photo_file_id")
+    if photo_file_id:
+        try:
+            await call.message.delete()
+            await call.message.answer_photo(
+                photo=photo_file_id,
+                caption=text,
+                reply_markup=get_suggestion_admin_kb(suggestion_id, status=item["status"])
+            )
+            await call.answer()
+            return
+        except Exception:
+            pass
+
     await call.message.edit_text(
         text,
         reply_markup=get_suggestion_admin_kb(suggestion_id, status=item["status"])
@@ -569,6 +614,79 @@ async def process_send_suggestion_reply(message: Message, state: FSMContext, bot
         )
         await message.answer(
             f"✅ Xabar foydalanuvchiga (ID: <code>{user_id}</code>) muvaffaqiyatli yetkazildi!",
+            reply_markup=get_admin_dashboard_kb()
+        )
+    except Exception as e:
+        await message.answer(
+            f"❌ Xabarni yuborib bo'lmadi (Foydalanuvchi botni bloklagan bo'lishi mumkin).\nXatolik: {e}",
+            reply_markup=get_admin_dashboard_kb()
+        )
+
+# --- Murojaat / Support xabarlariga javob yozish ---
+
+@admin_router.callback_query(F.data.startswith("support_action:reply:"))
+async def handle_support_reply_start(call: CallbackQuery, state: FSMContext):
+    if not is_admin(call.from_user.id):
+        await call.answer("⛔ Siz admin emassiz!", show_alert=True)
+        return
+    msg_id = int(call.data.split(":")[2])
+    item = await get_support_message(msg_id)
+    if not item:
+        await call.answer("Murojaat topilmadi!", show_alert=True)
+        return
+
+    await state.update_data(
+        reply_support_id=msg_id,
+        reply_user_id=item["user_id"]
+    )
+    await state.set_state(AdminStates.waiting_for_support_reply)
+
+    user_str = f"@{item['username']}" if item["username"] else item["full_name"]
+    await call.message.answer(
+        f"✍️ <b>Foydalanuvchiga javob yozish:</b> {user_str} (ID: <code>{item['user_id']}</code>)\n\n"
+        "Foydalanuvchiga yubormoqchi bo'lgan xabaringizni yozib yuboring:",
+        reply_markup=get_cancel_support_reply_kb()
+    )
+    await call.answer()
+
+@admin_router.callback_query(F.data == "support_action:cancel_reply")
+async def handle_cancel_support_reply(call: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await call.message.delete()
+    await call.answer("Javob yozish bekor qilindi")
+
+@admin_router.message(AdminStates.waiting_for_support_reply)
+async def process_send_support_reply(message: Message, state: FSMContext, bot: Bot):
+    if not is_admin(message.from_user.id):
+        return
+
+    data = await state.get_data()
+    user_id = data.get("reply_user_id")
+    msg_id = data.get("reply_support_id")
+    await state.clear()
+
+    if not user_id:
+        await message.answer(
+            "❌ Xatolik: foydalanuvchi ma'lumotlari topilmadi.",
+            reply_markup=get_admin_dashboard_kb()
+        )
+        return
+
+    reply_text = message.html_text or message.text
+
+    try:
+        await bot.send_message(
+            chat_id=user_id,
+            text=(
+                "📩 <b>Signal Books ma'muriyatidan javob:</b>\n\n"
+                f"{reply_text}"
+            )
+        )
+        if msg_id:
+            await update_support_status(msg_id, "replied")
+
+        await message.answer(
+            f"✅ Javob foydalanuvchiga (ID: <code>{user_id}</code>) muvaffaqiyatli yetkazildi!",
             reply_markup=get_admin_dashboard_kb()
         )
     except Exception as e:

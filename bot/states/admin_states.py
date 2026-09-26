@@ -8,3 +8,5 @@ class AdminStates(StatesGroup):
     waiting_for_about_text = State()
     waiting_for_contact_text = State()
     waiting_for_suggestion_reply = State()
+    waiting_for_support_reply = State()
+
